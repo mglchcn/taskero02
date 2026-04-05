@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { 
   ShieldCheck, Key, CheckCircle, Search, Users, ChevronRight, 
@@ -41,21 +41,32 @@ const AdminLoginView = ({ p }: { p: any }) => {
   const handleAdminLogin = async (e: any) => {
     e.preventDefault();
     setIsLoggingIn(true); setLoginError('');
+    
     try {
-      if (email === 'admin@demo.com' && password === 'admin123') {
-         const { user } = await signInAnonymously(auth);
-         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), {
-           id: user.uid,
-           role: 'superadmin',
-           name: 'Admin Demo',
-           createdAt: Date.now()
-         });
-         return;
-      }
+      // 1. Intentamos iniciar sesión normalmente
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (err) {
-      setLoginError('Credenciales incorrectas o usuario no autorizado.');
-      setIsLoggingIn(false);
+    } catch (err: any) {
+      // 2. Si el usuario no existe y usa la CREDENCIAL MAESTRA, creamos la cuenta real en Firebase
+      if (email === 'admin@taskero.com' && password === 'admin123') {
+         try {
+           const { user } = await createUserWithEmailAndPassword(auth, email, password);
+           
+           // Le asignamos el rol de Súper Administrador en la base de datos
+           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), {
+             id: user.uid,
+             role: 'superadmin',
+             name: 'Dueño del Sistema',
+             createdAt: Date.now()
+           });
+           return; // Éxito, el useEffect nos redirigirá
+         } catch (createErr: any) {
+           setLoginError('Error de Firebase al crear el Súper Usuario: ' + createErr.message);
+           setIsLoggingIn(false);
+         }
+      } else {
+        setLoginError('Credenciales incorrectas o usuario no registrado.');
+        setIsLoggingIn(false);
+      }
     }
   };
 
@@ -82,7 +93,7 @@ const AdminLoginView = ({ p }: { p: any }) => {
               <input type="password" required value={password} onChange={(e: any) => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-950 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl outline-none focus:border-purple-500" />
             </div>
           </div>
-          {loginError && <div className="mt-4 text-red-400 text-xs font-bold text-center bg-red-400/10 py-2 rounded-lg">{loginError}</div>}
+          {loginError && <div className="mt-4 text-red-400 text-xs font-bold text-center bg-red-400/10 py-2 rounded-lg px-2">{loginError}</div>}
           <button disabled={isLoggingIn || !email || !password} type="submit" className="w-full mt-6 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50">
             {isLoggingIn ? 'Verificando...' : 'Iniciar Sesión'}
           </button>
