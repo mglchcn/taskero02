@@ -6,7 +6,7 @@ import {
   ShieldCheck, Key, CheckCircle, Search, Users, ChevronRight, 
   QrCode, Smartphone, Clock, AlertCircle, Settings, Crown, 
   ChevronLeft, Activity, Lock, LogOut, UserCog, Shield,
-  Mail, User as UserIcon, MapPin, Briefcase
+  Mail, User as UserIcon, MapPin, Briefcase, Edit2
 } from 'lucide-react';
 
 // --- 0. INYECCIÓN FORZADA DE TAILWIND CSS ---
@@ -113,7 +113,6 @@ const LoginView = ({ p }: { p: any }) => {
     setIsLoggingIn(true); setLoginError('');
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // El onAuthStateChanged en App.tsx se encarga de redirigir automáticamente
     } catch (err: any) {
       setLoginError('Correo o contraseña incorrectos.');
       setIsLoggingIn(false);
@@ -124,7 +123,7 @@ const LoginView = ({ p }: { p: any }) => {
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-6 text-slate-100 relative overflow-hidden">
       <div className="absolute top-0 inset-x-0 h-64 bg-gradient-to-b from-amber-500/10 to-transparent"></div>
       <div className="w-full max-w-sm relative z-10 animate-in fade-in duration-500">
-        <button onClick={() => p.setCurrentView('gate')} className="absolute -top-12 left-0 text-slate-500 hover:text-slate-300 flex items-center text-sm font-bold"><ChevronLeft size={16}/> Volver al inicio</button>
+        <button onClick={() => p.setCurrentView('gate')} className="absolute -top-12 left-0 text-slate-500 hover:text-slate-300 flex items-center text-sm font-bold"><ChevronLeft size={16}/> Volver a la Puerta</button>
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full border border-amber-500/30 bg-slate-900 shadow-[0_0_30px_rgba(245,158,11,0.15)] mb-4">
             <Crown size={28} className="text-amber-500" />
@@ -167,10 +166,10 @@ const GateView = ({ p }: { p: any }) => {
 
       if (codeSnap.exists() && (codeSnap.data() as any).status === 'active') {
         p.setValidatedCodeData({ id: codeSnap.id, ...(codeSnap.data() as any) });
-        p.setCurrentView('register'); // Ahora redirige al registro en vez de oath
+        p.setCurrentView('register'); 
       } else if (codeToTest === 'VIP-DEMO' || codeToTest === 'TSK-DEMO') {
         p.setValidatedCodeData({ id: codeToTest, type: codeToTest === 'VIP-DEMO' ? 'client_vip' : 'taskero_elite', createdBy: 'admin_master' });
-        p.setCurrentView('register'); // Ahora redirige al registro en vez de oath
+        p.setCurrentView('register'); 
       } else {
         setError('Código de acceso inválido o expirado.');
       }
@@ -215,14 +214,13 @@ const GateView = ({ p }: { p: any }) => {
   );
 };
 
-// NUEVA VISTA: REGISTRO DE USUARIO DESPUÉS DE VALIDAR EL CÓDIGO
+// VISTA: REGISTRO DE USUARIO DESPUÉS DE VALIDAR EL CÓDIGO
 const RegisterView = ({ p }: { p: any }) => {
   const isTaskero = p.validatedCodeData?.type === 'taskero_elite';
   const [formData, setFormData] = useState({
     name: '', email: '', password: '', location: '', skills: ''
   });
 
-  // Si no hay un código validado, se devuelve a la puerta
   if (!p.validatedCodeData) {
     p.setCurrentView('gate');
     return null;
@@ -317,7 +315,6 @@ const OathView = ({ p }: { p: any }) => {
   const handleAcceptOath = async () => {
     setIsProcessing(true);
     try {
-      // 1. Crear el usuario real con correo y contraseña
       const authResult = await createUserWithEmailAndPassword(auth, p.registrationData.email, p.registrationData.password);
       const newUserId = authResult.user.uid;
       
@@ -340,7 +337,8 @@ const OathView = ({ p }: { p: any }) => {
           activeNetwork: 5, 
           totalSolved: 0,
           specialties: p.registrationData.skills ? p.registrationData.skills.split(',').map((s:string) => s.trim()) : ["Gestión VIP"], 
-          zones: p.registrationData.location ? p.registrationData.location.split(',').map((s:string) => s.trim()) : ["La Paz"]
+          zones: p.registrationData.location ? p.registrationData.location.split(',').map((s:string) => s.trim()) : ["La Paz"],
+          bio: "Gestor verificado de la red Taskero."
         });
       } else {
         Object.assign(newProfile, {
@@ -348,18 +346,16 @@ const OathView = ({ p }: { p: any }) => {
         });
       }
       
-      // 2. Guardamos en Firebase
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', newUserId), newProfile);
       if (p.validatedCodeData && !p.validatedCodeData.id.includes('DEMO')) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invite_codes', p.validatedCodeData.id), { status: 'used', usedBy: newUserId });
       }
 
-      // 3. Forzamos la redirección INMEDIATAMENTE después de crear el perfil
       p.setCurrentProfile(newProfile);
       p.setCurrentView(role === 'client' ? 'clientDash' : 'taskeroDash');
 
     } catch (err: any) { 
-      console.warn("Error firmando/registrando:", err); 
+      console.warn("Error registrando:", err); 
       alert("Hubo un error en tu registro: " + err.message);
       setIsProcessing(false);
     }
@@ -376,13 +372,92 @@ const OathView = ({ p }: { p: any }) => {
         </div>
         <div className="p-8">
           <button onClick={handleAcceptOath} disabled={isProcessing} className="w-full bg-slate-100 hover:bg-white text-slate-900 font-bold py-4 rounded-xl transition-all active:scale-95">
-            {isProcessing ? 'Registrando y Sellando pacto...' : 'Acepto el Pacto y mi Responsabilidad'}
+            {isProcessing ? 'Registrando...' : 'Acepto el Pacto y mi Responsabilidad'}
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+// VISTA: EDITAR PERFIL (NUEVO)
+const EditProfileView = ({ p }: { p: any }) => {
+  const isTaskero = p.currentProfile?.role === 'taskero';
+  const [formData, setFormData] = useState({
+    name: p.currentProfile?.name || '',
+    avatar: p.currentProfile?.avatar || '',
+    bio: p.currentProfile?.bio || '',
+    zones: p.currentProfile?.zones?.join(', ') || '',
+    specialties: p.currentProfile?.specialties?.join(', ') || ''
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async (e: any) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const updates: any = {
+        name: formData.name,
+        avatar: formData.avatar,
+      };
+      if (isTaskero) {
+        updates.bio = formData.bio;
+        updates.zones = formData.zones.split(',').map((s: string) => s.trim());
+        updates.specialties = formData.specialties.split(',').map((s: string) => s.trim());
+      }
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', p.currentProfile.id), updates);
+      p.setCurrentView(isTaskero ? 'taskeroDash' : 'clientDash');
+    } catch (err) {
+      console.warn("Error saving profile", err);
+    }
+    setIsSaving(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-5 md:p-10 flex flex-col items-center">
+      <div className="w-full max-w-2xl mx-auto mt-4 md:mt-10">
+        <button onClick={() => p.setCurrentView(isTaskero ? 'taskeroDash' : 'clientDash')} className="text-slate-500 hover:text-slate-800 transition-colors font-bold mb-8 flex items-center"><ChevronLeft size={20}/> Volver al Panel</button>
+        <h2 className="text-2xl md:text-3xl font-bold mb-6 text-slate-900 flex items-center gap-2"><Edit2 className="text-blue-500" /> Editar mi Perfil</h2>
+        <form onSubmit={handleSave} className="space-y-6 bg-white border border-slate-200 p-6 md:p-8 rounded-3xl shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nombre y Apellido</label>
+              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Iniciales (Avatar)</label>
+              <input required type="text" maxLength={2} value={formData.avatar} onChange={e => setFormData({...formData, avatar: e.target.value.toUpperCase()})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-sm font-bold uppercase" />
+            </div>
+          </div>
+          
+          {isTaskero && (
+            <>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Sobre mí (Manifiesto de Confianza)</label>
+                <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-all min-h-[100px] text-sm"></textarea>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Zonas (Separadas por coma)</label>
+                  <input type="text" value={formData.zones} onChange={e => setFormData({...formData, zones: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-all text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Especialidades (Separadas por coma)</label>
+                  <input type="text" value={formData.specialties} onChange={e => setFormData({...formData, specialties: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition-all text-sm" />
+                </div>
+              </div>
+            </>
+          )}
+          
+          <button disabled={isSaving} type="submit" className={`w-full font-bold py-4 rounded-xl shadow-lg active:scale-[0.98] transition-all text-white ${isTaskero ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 
 const ClientDashboardView = ({ p }: { p: any }) => {
   const displayTaskeros = p.allTaskeros.length > 0 ? p.allTaskeros : [
@@ -401,7 +476,10 @@ const ClientDashboardView = ({ p }: { p: any }) => {
                 <Crown size={24} className="text-amber-400" /> Hola, {p.currentProfile?.name?.split(' ')[0] || 'Cliente VIP'}
               </h1>
             </div>
-            <button onClick={p.handleLogout} className="text-slate-400 hover:text-white p-2" title="Cerrar Sesión"><LogOut size={20}/></button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => p.setCurrentView('editProfile')} className="text-slate-400 hover:text-white p-2 bg-slate-800 rounded-full border border-slate-700" title="Editar Perfil"><Edit2 size={16}/></button>
+              <button onClick={p.handleLogout} className="text-slate-400 hover:text-white p-2 bg-slate-800 rounded-full border border-slate-700" title="Cerrar Sesión"><LogOut size={16}/></button>
+            </div>
           </div>
           <div className="bg-white p-1 rounded-2xl flex items-center text-slate-800 shadow-md max-w-2xl">
             <Search size={20} className="ml-3 text-slate-400" />
@@ -451,6 +529,12 @@ const ProfileView = ({ p }: { p: any }) => {
       </header>
 
       <main className="p-5 md:p-10 space-y-6 max-w-4xl mx-auto w-full">
+        {t.bio && (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center">
+            <h3 className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Manifiesto del Gestor</h3>
+            <p className="text-slate-300 text-sm md:text-base italic">"{t.bio}"</p>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-lg text-center flex flex-col justify-center">
             <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Puntos de Prestigio</p>
@@ -458,11 +542,14 @@ const ProfileView = ({ p }: { p: any }) => {
             <p className="text-xs md:text-sm text-amber-500 font-bold mt-3">Excelencia Verificada</p>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
-             <h3 className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">Especialidades</h3>
-             <div className="flex flex-wrap gap-2">
+             <h3 className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">Especialidades y Zonas</h3>
+             <div className="flex flex-wrap gap-2 mb-4">
               {(t.specialties || ['Gestor General', 'Emergencias']).map((spec: string, idx: number) => (
                 <span key={idx} className="bg-slate-800 text-slate-300 text-xs md:text-sm font-bold px-4 py-2 rounded-xl">{spec}</span>
               ))}
+             </div>
+             <div className="flex items-center gap-2 text-slate-400 text-sm">
+               <MapPin size={16}/> <span className="font-medium">{t.zones?.join(', ') || 'La Paz'}</span>
              </div>
           </div>
         </div>
@@ -605,7 +692,10 @@ const TaskeroDashboardView = ({ p }: { p: any }) => {
                  <div><p className="text-sm text-slate-400 mb-1">Leads VIP</p><p className="text-3xl font-bold text-white">{myLeads.length}</p></div>
                  <Activity size={32} className="text-amber-500"/>
                </div>
-               <button onClick={p.handleLogout} className="text-slate-400 hover:text-white p-2" title="Cerrar Sesión"><LogOut size={24}/></button>
+               <div className="flex gap-2">
+                 <button onClick={() => p.setCurrentView('editProfile')} className="text-slate-400 hover:text-white p-2 bg-slate-800 rounded-full border border-slate-700" title="Editar Perfil"><Edit2 size={20}/></button>
+                 <button onClick={p.handleLogout} className="text-slate-400 hover:text-white p-2 bg-slate-800 rounded-full border border-slate-700" title="Cerrar Sesión"><LogOut size={20}/></button>
+               </div>
             </div>
           </div>
         </header>
@@ -885,6 +975,7 @@ export default function App() {
       {currentView === 'gate' && <GateView p={appProps} />}
       {currentView === 'login' && <LoginView p={appProps} />}
       {currentView === 'register' && <RegisterView p={appProps} />}
+      {currentView === 'editProfile' && <EditProfileView p={appProps} />}
       {currentView === 'adminLogin' && <AdminLoginView p={appProps} />}
       {currentView === 'oath' && <OathView p={appProps} />}
       {currentView === 'clientDash' && <ClientDashboardView p={appProps} />}
