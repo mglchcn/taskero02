@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot, deleteDoc, addDoc } from 'firebase/firestore';
 import { 
   ShieldCheck, Key, CheckCircle, Search, Users, ChevronRight, 
   QrCode, Smartphone, Clock, AlertCircle, Settings, Crown, 
   ChevronLeft, Activity, Lock, LogOut, UserCog, Shield,
-  Mail, User as UserIcon, MapPin, Briefcase, Edit2
+  Mail, User as UserIcon, MapPin, Briefcase, Edit2, 
+  MessageCircle, Send, Trash2, Edit
 } from 'lucide-react';
 
 // --- 0. INYECCIÓN FORZADA DE TAILWIND CSS ---
@@ -101,7 +102,6 @@ const AdminLoginView = ({ p }: { p: any }) => {
   );
 };
 
-// VISTA DE LOGIN GENERAL PARA USUARIOS
 const LoginView = ({ p }: { p: any }) => {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -199,7 +199,6 @@ const GateView = ({ p }: { p: any }) => {
             {isProcessing ? 'Validando...' : <>Validar Identidad <ChevronRight size={18} /></>}
           </button>
 
-          {/* Opción para usuarios ya registrados */}
           <div className="pt-4 border-t border-slate-800 text-center mt-6">
             <button type="button" onClick={() => p.setCurrentView('login')} className="text-xs font-bold text-amber-500 hover:text-amber-400 transition-colors">
               ¿Ya estás en la red? Inicia Sesión
@@ -214,7 +213,6 @@ const GateView = ({ p }: { p: any }) => {
   );
 };
 
-// VISTA: REGISTRO DE USUARIO DESPUÉS DE VALIDAR EL CÓDIGO
 const RegisterView = ({ p }: { p: any }) => {
   const isTaskero = p.validatedCodeData?.type === 'taskero_elite';
   const [formData, setFormData] = useState({
@@ -380,7 +378,7 @@ const OathView = ({ p }: { p: any }) => {
   );
 };
 
-// VISTA: EDITAR PERFIL (NUEVO)
+// VISTA: EDITAR PERFIL (CLIENTE/TASKERO)
 const EditProfileView = ({ p }: { p: any }) => {
   const isTaskero = p.currentProfile?.role === 'taskero';
   const [formData, setFormData] = useState({
@@ -458,8 +456,91 @@ const EditProfileView = ({ p }: { p: any }) => {
   );
 };
 
+// VISTA: CHAT INTERNO (NUEVO MÓDULO)
+const ChatView = ({ p }: { p: any }) => {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const taskId = p.activeTask?.id;
+
+  useEffect(() => {
+    if (!taskId) return;
+    const msgRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId, 'messages');
+    const unsub = onSnapshot(msgRef, (snap) => {
+      const msgs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+      setMessages(msgs.sort((a,b) => a.timestamp - b.timestamp));
+    });
+    return () => unsub();
+  }, [taskId]);
+
+  const handleSend = async (e: any) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId, 'messages'), {
+        text: newMessage,
+        senderId: p.currentProfile.id,
+        senderName: p.currentProfile.name.split(' ')[0],
+        timestamp: Date.now()
+      });
+      setNewMessage('');
+    } catch (err) {
+      console.warn("Error enviando mensaje", err);
+    }
+  };
+
+  const isClient = p.currentProfile?.role === 'client';
+  const otherPersonName = isClient ? p.activeTask?.taskeroName : p.activeTask?.clientName;
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col max-w-2xl mx-auto md:border-x md:border-slate-200 md:shadow-xl">
+      <header className="bg-slate-900 text-white p-4 flex items-center gap-4 sticky top-0 z-10 shadow-md">
+        <button onClick={() => p.setCurrentView(isClient ? 'clientDash' : 'taskeroDash')} className="text-slate-400 hover:text-white transition-colors p-1">
+          <ChevronLeft size={24} />
+        </button>
+        <div>
+          <h2 className="font-bold text-lg leading-tight">{otherPersonName}</h2>
+          <p className="text-xs text-slate-400">Solicitud: {p.activeTask?.id.substring(0,8)}</p>
+        </div>
+      </header>
+
+      <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3 pb-24">
+        {messages.length === 0 && (
+          <div className="text-center text-slate-400 mt-10 text-sm">
+            <MessageCircle size={32} className="mx-auto mb-2 opacity-50" />
+            Envía un mensaje para iniciar la coordinación.
+          </div>
+        )}
+        {messages.map(msg => {
+          const isMine = msg.senderId === p.currentProfile.id;
+          return (
+            <div key={msg.id} className={`max-w-[80%] rounded-2xl p-3 ${isMine ? 'bg-blue-600 text-white self-end rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-800 self-start rounded-tl-sm'}`}>
+              {!isMine && <p className="text-[10px] font-bold text-slate-400 mb-1">{msg.senderName}</p>}
+              <p className="text-sm">{msg.text}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <form onSubmit={handleSend} className="fixed bottom-0 w-full max-w-2xl bg-white border-t border-slate-200 p-3 flex gap-2">
+        <input 
+          type="text" 
+          value={newMessage} 
+          onChange={e => setNewMessage(e.target.value)} 
+          placeholder="Escribe un mensaje..." 
+          className="flex-1 bg-slate-100 border border-slate-200 rounded-full px-4 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
+        />
+        <button type="submit" disabled={!newMessage.trim()} className="bg-blue-600 text-white p-3 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          <Send size={18} />
+        </button>
+      </form>
+    </div>
+  );
+};
 
 const ClientDashboardView = ({ p }: { p: any }) => {
+  // Tareas activas del cliente
+  const myActiveTasks = p.allTasks.filter((t: any) => t.clientId === p.currentProfile?.id && ['paid'].includes(t.status));
+  
   const displayTaskeros = p.allTaskeros.length > 0 ? p.allTaskeros : [
     { id: "mock-1", name: "Carlos Mendoza", type: "Taskero Élite", reputationScore: 98, specialties: ["Mantenimiento"], zone: "Zona Sur", avatar: "CM" },
     { id: "mock-2", name: "Ana Velasco", type: "Taskero Pro", reputationScore: 95, specialties: ["Trámites"], zone: "Sopocachi", avatar: "AV" }
@@ -489,25 +570,47 @@ const ClientDashboardView = ({ p }: { p: any }) => {
         </header>
       </div>
 
-      <main className="p-5 md:p-8 max-w-7xl mx-auto w-full space-y-4 mt-2">
-        <h2 className="text-sm md:text-base font-bold text-slate-800 uppercase tracking-wider">Gestores de Confianza</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayTaskeros.map((t: any) => (
-            <div key={t.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative hover:shadow-md transition-shadow flex flex-col h-full">
-              <div className="absolute top-0 right-0 text-[10px] font-bold px-3 py-1.5 rounded-bl-2xl bg-amber-100 text-amber-700">{t.type || 'Élite'}</div>
-              <div className="flex items-start gap-4 mb-4 flex-1">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center font-bold text-slate-500 border border-slate-200">{t.avatar || 'TS'}</div>
-                <div>
-                  <h3 className="font-bold text-slate-900 md:text-lg">{t.name}</h3>
-                  <p className="text-xs md:text-sm text-slate-500">Reputación: <span className="font-bold text-amber-600">{t.reputationScore || 100}/100</span></p>
+      <main className="p-5 md:p-8 max-w-7xl mx-auto w-full space-y-6 mt-2">
+        {/* SECCIÓN DE SOLICITUDES ACTIVAS PARA EL CLIENTE */}
+        {myActiveTasks.length > 0 && (
+          <section>
+            <h2 className="text-sm md:text-base font-bold text-slate-800 uppercase tracking-wider mb-4">Tus Solicitudes Activas</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {myActiveTasks.map((t: any) => (
+                <div key={t.id} className="bg-white border border-blue-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded uppercase">Asignado a {t.taskeroName}</span>
+                    <p className="font-bold text-slate-900 mt-1 line-clamp-1">"{t.problem}"</p>
+                  </div>
+                  <button onClick={() => { p.setActiveTask(t); p.setCurrentView('chat'); }} className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-md transition-colors">
+                    <MessageCircle size={20} />
+                  </button>
                 </div>
-              </div>
-              <button onClick={() => { p.setSelectedTaskero(t); p.setCurrentView('profile'); }} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm flex justify-center items-center gap-2 hover:bg-slate-800 transition-colors mt-auto">
-                Ver Perfil <ChevronRight size={16} />
-              </button>
+              ))}
             </div>
-          ))}
-        </div>
+          </section>
+        )}
+
+        <section>
+          <h2 className="text-sm md:text-base font-bold text-slate-800 uppercase tracking-wider mb-4">Gestores de Confianza</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {displayTaskeros.map((t: any) => (
+              <div key={t.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 relative hover:shadow-md transition-shadow flex flex-col h-full">
+                <div className="absolute top-0 right-0 text-[10px] font-bold px-3 py-1.5 rounded-bl-2xl bg-amber-100 text-amber-700">{t.type || 'Élite'}</div>
+                <div className="flex items-start gap-4 mb-4 flex-1">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center font-bold text-slate-500 border border-slate-200">{t.avatar || 'TS'}</div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 md:text-lg">{t.name}</h3>
+                    <p className="text-xs md:text-sm text-slate-500">Reputación: <span className="font-bold text-amber-600">{t.reputationScore || 100}/100</span></p>
+                  </div>
+                </div>
+                <button onClick={() => { p.setSelectedTaskero(t); p.setCurrentView('profile'); }} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm flex justify-center items-center gap-2 hover:bg-slate-800 transition-colors mt-auto">
+                  Ver Perfil <ChevronRight size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       </main>
     </div>
   );
@@ -637,7 +740,10 @@ const CheckoutView = ({ p }: { p: any }) => {
         <CheckCircle size={80} className="text-emerald-500 mb-6 animate-in zoom-in" />
         <h2 className="text-3xl md:text-4xl font-bold text-slate-900">¡Pago Confirmado!</h2>
         <p className="text-slate-500 text-lg mt-3 mb-10 max-w-md">El gestor ha sido notificado y se pondrá a trabajar de inmediato.</p>
-        <button onClick={() => p.setCurrentView('clientDash')} className="bg-slate-900 hover:bg-slate-800 text-white px-10 py-4 rounded-xl font-bold text-lg transition-colors">Volver al Inicio</button>
+        <button onClick={() => { p.setCurrentView('chat'); }} className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-xl font-bold text-lg transition-colors flex items-center gap-2 mx-auto mb-4">
+           <MessageCircle /> Abrir Chat de Coordinación
+        </button>
+        <button onClick={() => p.setCurrentView('clientDash')} className="text-slate-500 hover:text-slate-700 font-bold transition-colors">Volver al Inicio</button>
       </div>
     );
   }
@@ -715,12 +821,100 @@ const TaskeroDashboardView = ({ p }: { p: any }) => {
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex-1 mb-4">
                   <h3 className="font-bold text-slate-900 text-lg leading-snug">"{task.problem}"</h3>
                 </div>
-                <button className="w-full bg-emerald-600 hover:bg-emerald-700 transition-colors text-white py-3.5 rounded-xl font-bold text-sm shadow-md mt-auto">Contactar Cliente</button>
+                {/* ABRIR CHAT DESDE EL TASKERO */}
+                <button onClick={() => { p.setActiveTask(task); p.setCurrentView('chat'); }} className="w-full bg-emerald-600 hover:bg-emerald-700 transition-colors text-white py-3.5 rounded-xl font-bold text-sm shadow-md mt-auto flex items-center justify-center gap-2">
+                  <MessageCircle size={18} /> Abrir Chat Cliente
+                </button>
               </div>
             ))}
           </div>
         )}
       </main>
+    </div>
+  );
+};
+
+// VISTA: EDICIÓN ADMINISTRATIVA DE USUARIO (NUEVO MÓDULO)
+const AdminEditUserView = ({ p }: { p: any }) => {
+  const u = p.selectedUser;
+  if (!u) return null;
+
+  const [formData, setFormData] = useState({
+    name: u.name || '',
+    role: u.role || 'visitante',
+    reputationScore: u.reputationScore || 100,
+    zones: u.zones?.join(', ') || '',
+    specialties: u.specialties?.join(', ') || ''
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async (e: any) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const updates: any = {
+        name: formData.name,
+        role: formData.role,
+        reputationScore: Number(formData.reputationScore)
+      };
+      if (['taskero', 'superadmin'].includes(formData.role)) {
+        updates.zones = formData.zones.split(',').map((s: string) => s.trim()).filter(Boolean);
+        updates.specialties = formData.specialties.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), updates);
+      p.setCurrentView('admin');
+    } catch (err) {
+      console.warn("Error editando usuario", err);
+    }
+    setIsSaving(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-5 md:p-10 flex flex-col items-center">
+      <div className="w-full max-w-2xl mx-auto mt-4 md:mt-10">
+        <button onClick={() => p.setCurrentView('admin')} className="text-slate-500 hover:text-slate-800 transition-colors font-bold mb-8 flex items-center"><ChevronLeft size={20}/> Volver a Base de Datos</button>
+        <h2 className="text-2xl md:text-3xl font-bold mb-6 text-slate-900 flex items-center gap-2"><Edit className="text-purple-600" /> Editando Perfil (ID: {u.id.substring(0,8)})</h2>
+        
+        <form onSubmit={handleSave} className="space-y-6 bg-white border border-slate-200 p-6 md:p-8 rounded-3xl shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nombre</label>
+              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-purple-500 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Puntos de Prestigio</label>
+              <input required type="number" max={100} min={0} value={formData.reputationScore} onChange={e => setFormData({...formData, reputationScore: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-purple-500 text-sm font-bold text-amber-600" />
+            </div>
+          </div>
+
+          <div>
+             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Rol del Usuario</label>
+             <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-purple-500 text-sm bg-white">
+                <option value="superadmin">Súper Admin</option>
+                <option value="taskero">Taskero Élite</option>
+                <option value="client">Cliente VIP</option>
+                <option value="visitante">Visitante</option>
+             </select>
+          </div>
+          
+          {['taskero', 'superadmin'].includes(formData.role) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Zonas (Separadas por coma)</label>
+                <input type="text" value={formData.zones} onChange={e => setFormData({...formData, zones: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-purple-500 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Especialidades</label>
+                <input type="text" value={formData.specialties} onChange={e => setFormData({...formData, specialties: e.target.value})} className="w-full border border-slate-300 rounded-xl p-4 outline-none focus:border-purple-500 text-sm" />
+              </div>
+            </div>
+          )}
+          
+          <button disabled={isSaving} type="submit" className="w-full font-bold py-4 rounded-xl shadow-lg active:scale-[0.98] transition-all text-white bg-purple-600 hover:bg-purple-700">
+            {isSaving ? 'Guardando...' : 'Aplicar Cambios Forzados'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 };
@@ -742,10 +936,15 @@ const AdminDashboardView = ({ p }: { p: any }) => {
     } catch (e) {}
   };
 
-  const handleChangeUserRole = async (userId: string, newRole: string) => {
-    if (!isSuperAdmin) return alert('Solo un Súper Administrador puede cambiar roles.');
-    try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId), { role: newRole }); } 
-    catch (err) { console.warn('Error', err); }
+  const handleDeleteUser = async (userId: string) => {
+    if (!isSuperAdmin) return;
+    if (window.confirm('¿Peligro: Estás seguro de eliminar este perfil de la base de datos? Esta acción no se puede deshacer.')) {
+       try {
+         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId));
+       } catch (err) {
+         alert("Error al eliminar usuario.");
+       }
+    }
   };
 
   return (
@@ -768,7 +967,7 @@ const AdminDashboardView = ({ p }: { p: any }) => {
              <Activity size={16} className="inline mr-2"/> Operaciones
           </button>
           <button onClick={() => setAdminTab('users')} className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${adminTab === 'users' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}`}>
-             <UserCog size={16} className="inline mr-2"/> Usuarios
+             <UserCog size={16} className="inline mr-2"/> Usuarios Avanzado
           </button>
         </div>
       </header>
@@ -815,10 +1014,11 @@ const AdminDashboardView = ({ p }: { p: any }) => {
           </div>
         )}
 
+        {/* GESTIÓN AVANZADA DE USUARIOS */}
         {adminTab === 'users' && (
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in">
             <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-              <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users size={20} className="text-slate-500"/> Base de Datos</h2>
+              <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users size={20} className="text-slate-500"/> Base de Datos de Usuarios</h2>
               <span className="bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1 rounded-full">Total: {p.allUsers.length}</span>
             </div>
             <div className="overflow-x-auto">
@@ -827,7 +1027,7 @@ const AdminDashboardView = ({ p }: { p: any }) => {
                   <tr className="bg-white border-b border-slate-100 text-xs uppercase tracking-wider text-slate-400">
                     <th className="p-4 font-semibold">Nombre / ID</th>
                     <th className="p-4 font-semibold">Rol Actual</th>
-                    <th className="p-4 font-semibold text-right">Acción</th>
+                    <th className="p-4 font-semibold text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -845,18 +1045,19 @@ const AdminDashboardView = ({ p }: { p: any }) => {
                           'bg-slate-100 text-slate-600 border-slate-200'
                         }`}>{user.role || 'visitante'}</span>
                       </td>
-                      <td className="p-4 text-right">
-                        <select 
-                          disabled={!isSuperAdmin || user.id === p.currentProfile?.id}
-                          value={user.role || 'visitante'}
-                          onChange={(e: any) => handleChangeUserRole(user.id, e.target.value)}
-                          className="bg-white border border-slate-300 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2 ml-auto disabled:opacity-50 outline-none"
-                        >
-                          <option value="superadmin">Súper Admin</option>
-                          <option value="taskero">Taskero Élite</option>
-                          <option value="client">Cliente VIP</option>
-                          <option value="visitante">Visitante</option>
-                        </select>
+                      <td className="p-4 text-right flex justify-end gap-2">
+                        {isSuperAdmin && user.id !== p.currentProfile?.id && (
+                          <>
+                            {/* BOTÓN EDITAR */}
+                            <button onClick={() => { p.setSelectedUser(user); p.setCurrentView('adminEditUser'); }} className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200" title="Modificar Campos">
+                              <Edit size={16} />
+                            </button>
+                            {/* BOTÓN ELIMINAR */}
+                            <button onClick={() => handleDeleteUser(user.id)} className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-200" title="Eliminar Permanentemente">
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -886,9 +1087,10 @@ export default function App() {
   
   const [inviteCodeInput, setInviteCodeInput] = useState<string>('');
   const [validatedCodeData, setValidatedCodeData] = useState<any>(null);
-  const [registrationData, setRegistrationData] = useState<any>(null); // Datos del formulario
+  const [registrationData, setRegistrationData] = useState<any>(null);
   const [selectedTaskero, setSelectedTaskero] = useState<any>(null);
   const [activeTask, setActiveTask] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null); // Para el Admin
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -963,6 +1165,7 @@ export default function App() {
     registrationData, setRegistrationData,
     selectedTaskero, setSelectedTaskero,
     activeTask, setActiveTask,
+    selectedUser, setSelectedUser,
     handleLogout
   };
 
@@ -983,7 +1186,9 @@ export default function App() {
       {currentView === 'profile' && <ProfileView p={appProps} />}
       {currentView === 'contact' && <ContactView p={appProps} />}
       {currentView === 'checkout' && <CheckoutView p={appProps} />}
+      {currentView === 'chat' && <ChatView p={appProps} />}
       {currentView === 'admin' && <AdminDashboardView p={appProps} />}
+      {currentView === 'adminEditUser' && <AdminEditUserView p={appProps} />}
     </div>
   );
 }
