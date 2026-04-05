@@ -70,15 +70,6 @@ export default function App() {
         setAllUsers(usersData);
         
         const myProfile = usersData.find(u => u.id === authUser.uid);
-        
-        // Mock de superadmin si se usa la puerta trasera de demo
-        if (!myProfile && authUser.email === 'admin@demo.com') {
-          const demoProfile = { id: authUser.uid, role: 'superadmin', name: 'Admin Demo' };
-          setCurrentProfile(demoProfile);
-          setCurrentView('admin');
-          setLoading(false);
-          return;
-        }
 
         if (myProfile) {
           setCurrentProfile(myProfile);
@@ -137,8 +128,16 @@ export default function App() {
       e.preventDefault();
       setIsLoggingIn(true); setLoginError('');
       try {
+        // PUERTA TRASERA MEJORADA: Crea el usuario en Firebase automáticamente
         if (email === 'admin@demo.com' && password === 'admin123') {
-           await signInAnonymously(auth);
+           const { user } = await signInAnonymously(auth);
+           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), {
+             id: user.uid,
+             role: 'superadmin',
+             name: 'Admin Demo',
+             createdAt: Date.now()
+           });
+           // El useEffect detectará el nuevo perfil y te redirigirá a 'admin'
            return;
         }
         await signInWithEmailAndPassword(auth, email, password);
@@ -301,7 +300,7 @@ export default function App() {
   };
 
   // ==============================================================================
-  // VISTA 3: DASHBOARD CLIENTE (RESTORED RESPONSIVE)
+  // VISTA 3: DASHBOARD CLIENTE
   // ==============================================================================
   const ClientDashboardView = () => {
     const displayTaskeros = allTaskeros.length > 0 ? allTaskeros : [
@@ -355,7 +354,7 @@ export default function App() {
   };
 
   // ==============================================================================
-  // VISTA 4: PERFIL DEL TASKERO (RESTORED RESPONSIVE)
+  // VISTA 4: PERFIL DEL TASKERO
   // ==============================================================================
   const ProfileView = () => {
     const t = selectedTaskero;
@@ -402,7 +401,7 @@ export default function App() {
   };
 
   // ==============================================================================
-  // VISTA 5: CONTACTO / SOLICITUD (RESTORED RESPONSIVE)
+  // VISTA 5: CONTACTO / SOLICITUD 
   // ==============================================================================
   const ContactView = () => {
     const [problemDesc, setProblemDesc] = useState<string>('');
@@ -456,7 +455,7 @@ export default function App() {
   };
 
   // ==============================================================================
-  // VISTA 6: CHECKOUT (RESTORED RESPONSIVE)
+  // VISTA 6: CHECKOUT
   // ==============================================================================
   const CheckoutView = () => {
     const currentTaskFromDB = allTasks.find(t => t.id === activeTask?.id) || activeTask;
@@ -721,17 +720,18 @@ export default function App() {
     return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>;
   }
 
+  // EL ARREGLO ESTÁ AQUÍ ABAJO (Llamar a las vistas como funciones en lugar de componentes)
   return (
     <div className="relative w-full bg-slate-950 min-h-screen overflow-x-hidden font-sans text-slate-800">
-      {currentView === 'gate' && <GateView />}
-      {currentView === 'adminLogin' && <AdminLoginView />}
-      {currentView === 'oath' && <OathView />}
-      {currentView === 'clientDash' && <ClientDashboardView />}
-      {currentView === 'taskeroDash' && <TaskeroDashboardView />}
-      {currentView === 'profile' && <ProfileView />}
-      {currentView === 'contact' && <ContactView />}
-      {currentView === 'checkout' && <CheckoutView />}
-      {currentView === 'admin' && <AdminDashboardView />}
+      {currentView === 'gate' && GateView()}
+      {currentView === 'adminLogin' && AdminLoginView()}
+      {currentView === 'oath' && OathView()}
+      {currentView === 'clientDash' && ClientDashboardView()}
+      {currentView === 'taskeroDash' && TaskeroDashboardView()}
+      {currentView === 'profile' && ProfileView()}
+      {currentView === 'contact' && ContactView()}
+      {currentView === 'checkout' && CheckoutView()}
+      {currentView === 'admin' && AdminDashboardView()}
     </div>
   );
 }
