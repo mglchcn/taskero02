@@ -5,7 +5,8 @@ import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot } 
 import { 
   ShieldCheck, Key, CheckCircle, Search, Users, ChevronRight, 
   QrCode, Smartphone, Clock, AlertCircle, Settings, Crown, 
-  ChevronLeft, Activity, Lock, LogOut, UserCog, Shield
+  ChevronLeft, Activity, Lock, LogOut, UserCog, Shield,
+  Mail, User as UserIcon, MapPin, Briefcase
 } from 'lucide-react';
 
 // --- 0. INYECCIÓN FORZADA DE TAILWIND CSS ---
@@ -29,7 +30,7 @@ const db = getFirestore(app);
 const appId = 'taskeroapp-1023a';
 
 // ==============================================================================
-// COMPONENTES DE VISTA AISLADOS (PARA EVITAR ERRORES DE HOOKS Y PÉRDIDA DE FOCO)
+// COMPONENTES DE VISTA AISLADOS
 // ==============================================================================
 
 const AdminLoginView = ({ p }: { p: any }) => {
@@ -43,24 +44,21 @@ const AdminLoginView = ({ p }: { p: any }) => {
     setIsLoggingIn(true); setLoginError('');
     
     try {
-      // 1. Intentamos iniciar sesión normalmente
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
-      // 2. Si el usuario no existe y usa la CREDENCIAL MAESTRA, creamos la cuenta real en Firebase
       if (email === 'admin@taskero.com' && password === 'admin123') {
          try {
            const { user } = await createUserWithEmailAndPassword(auth, email, password);
-           
-           // Le asignamos el rol de Súper Administrador en la base de datos
            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), {
              id: user.uid,
              role: 'superadmin',
              name: 'Dueño del Sistema',
              createdAt: Date.now()
            });
-           return; // Éxito, el useEffect nos redirigirá
+           p.setCurrentView('admin');
+           return; 
          } catch (createErr: any) {
-           setLoginError('Error de Firebase al crear el Súper Usuario: ' + createErr.message);
+           setLoginError('Error al crear Súper Usuario: ' + createErr.message);
            setIsLoggingIn(false);
          }
       } else {
@@ -103,6 +101,58 @@ const AdminLoginView = ({ p }: { p: any }) => {
   );
 };
 
+// VISTA DE LOGIN GENERAL PARA USUARIOS
+const LoginView = ({ p }: { p: any }) => {
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [loginError, setLoginError] = useState<string>('');
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
+
+  const handleLogin = async (e: any) => {
+    e.preventDefault();
+    setIsLoggingIn(true); setLoginError('');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // El onAuthStateChanged en App.tsx se encarga de redirigir automáticamente
+    } catch (err: any) {
+      setLoginError('Correo o contraseña incorrectos.');
+      setIsLoggingIn(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-6 text-slate-100 relative overflow-hidden">
+      <div className="absolute top-0 inset-x-0 h-64 bg-gradient-to-b from-amber-500/10 to-transparent"></div>
+      <div className="w-full max-w-sm relative z-10 animate-in fade-in duration-500">
+        <button onClick={() => p.setCurrentView('gate')} className="absolute -top-12 left-0 text-slate-500 hover:text-slate-300 flex items-center text-sm font-bold"><ChevronLeft size={16}/> Volver al inicio</button>
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full border border-amber-500/30 bg-slate-900 shadow-[0_0_30px_rgba(245,158,11,0.15)] mb-4">
+            <Crown size={28} className="text-amber-500" />
+          </div>
+          <h1 className="text-2xl font-serif tracking-widest mb-1">BIENVENIDO</h1>
+          <p className="text-xs text-amber-500/80 uppercase tracking-[0.2em] font-bold">Inicia Sesión en la Red</p>
+        </div>
+        <form onSubmit={handleLogin} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1">Correo Electrónico</label>
+              <input type="email" required value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder="tu@correo.com" className="w-full bg-slate-950 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl outline-none focus:border-amber-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1">Contraseña</label>
+              <input type="password" required value={password} onChange={(e: any) => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-950 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl outline-none focus:border-amber-500" />
+            </div>
+          </div>
+          {loginError && <div className="mt-4 text-red-400 text-xs font-bold text-center bg-red-400/10 py-2 rounded-lg px-2">{loginError}</div>}
+          <button disabled={isLoggingIn || !email || !password} type="submit" className="w-full mt-6 bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 font-black py-3.5 rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50">
+            {isLoggingIn ? 'Entrando...' : 'Ingresar a mi cuenta'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const GateView = ({ p }: { p: any }) => {
   const [error, setError] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -117,14 +167,14 @@ const GateView = ({ p }: { p: any }) => {
 
       if (codeSnap.exists() && (codeSnap.data() as any).status === 'active') {
         p.setValidatedCodeData({ id: codeSnap.id, ...(codeSnap.data() as any) });
-        p.setCurrentView('oath');
+        p.setCurrentView('register'); // Ahora redirige al registro en vez de oath
       } else if (codeToTest === 'VIP-DEMO' || codeToTest === 'TSK-DEMO') {
         p.setValidatedCodeData({ id: codeToTest, type: codeToTest === 'VIP-DEMO' ? 'client_vip' : 'taskero_elite', createdBy: 'admin_master' });
-        p.setCurrentView('oath');
+        p.setCurrentView('register'); // Ahora redirige al registro en vez de oath
       } else {
         setError('Código de acceso inválido o expirado.');
       }
-    } catch (err) { setError('Error de conexión.'); }
+    } catch (err) { setError('Error de conexión con la base de datos.'); }
     setIsProcessing(false);
   };
 
@@ -149,6 +199,13 @@ const GateView = ({ p }: { p: any }) => {
           <button disabled={isProcessing || !p.inviteCodeInput} type="submit" className="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 font-black py-4 rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all flex justify-center items-center gap-2 active:scale-95 disabled:opacity-50">
             {isProcessing ? 'Validando...' : <>Validar Identidad <ChevronRight size={18} /></>}
           </button>
+
+          {/* Opción para usuarios ya registrados */}
+          <div className="pt-4 border-t border-slate-800 text-center mt-6">
+            <button type="button" onClick={() => p.setCurrentView('login')} className="text-xs font-bold text-amber-500 hover:text-amber-400 transition-colors">
+              ¿Ya estás en la red? Inicia Sesión
+            </button>
+          </div>
         </form>
       </div>
       <button onClick={() => p.setCurrentView('adminLogin')} className="absolute bottom-6 text-xs font-bold text-slate-600 hover:text-slate-400 uppercase tracking-widest transition-colors flex items-center gap-2">
@@ -158,21 +215,118 @@ const GateView = ({ p }: { p: any }) => {
   );
 };
 
+// NUEVA VISTA: REGISTRO DE USUARIO DESPUÉS DE VALIDAR EL CÓDIGO
+const RegisterView = ({ p }: { p: any }) => {
+  const isTaskero = p.validatedCodeData?.type === 'taskero_elite';
+  const [formData, setFormData] = useState({
+    name: '', email: '', password: '', location: '', skills: ''
+  });
+
+  // Si no hay un código validado, se devuelve a la puerta
+  if (!p.validatedCodeData) {
+    p.setCurrentView('gate');
+    return null;
+  }
+
+  const handleInputChange = (e: any) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleContinueToOath = (e: any) => {
+    e.preventDefault();
+    p.setRegistrationData(formData);
+    p.setCurrentView('oath');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-6 text-slate-100 relative overflow-hidden">
+      <div className="absolute top-0 inset-x-0 h-64 bg-gradient-to-b from-amber-500/10 to-transparent"></div>
+      <div className="w-full max-w-md relative z-10 animate-in fade-in duration-500 mt-8 mb-8">
+        <button onClick={() => p.setCurrentView('gate')} className="absolute -top-10 left-0 text-slate-500 hover:text-slate-300 flex items-center text-sm font-bold"><ChevronLeft size={16}/> Volver</button>
+        
+        <div className="text-center mb-6">
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full border mb-4 shadow-[0_0_20px_rgba(245,158,11,0.15)] ${isTaskero ? 'bg-slate-900 border-amber-500/50 text-amber-500' : 'bg-slate-900 border-blue-500/50 text-blue-400'}`}>
+            {isTaskero ? <Briefcase size={28} /> : <Crown size={28} />}
+          </div>
+          <h2 className="text-2xl font-serif tracking-widest mb-1">{isTaskero ? 'PERFIL DE GESTOR' : 'CUENTA VIP'}</h2>
+          <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Completando Registro</p>
+        </div>
+
+        <form onSubmit={handleContinueToOath} className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur-md space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1">Nombre y Apellido</label>
+            <div className="relative">
+              <UserIcon className="absolute left-4 top-3.5 text-slate-500" size={18} />
+              <input type="text" name="name" required value={formData.name} onChange={handleInputChange} placeholder="Ej. Ana García" className="w-full bg-slate-950 border border-slate-700 text-slate-100 pl-12 pr-4 py-3 rounded-xl outline-none focus:border-amber-500 text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1">Correo Electrónico</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-3.5 text-slate-500" size={18} />
+              <input type="email" name="email" required value={formData.email} onChange={handleInputChange} placeholder="contacto@ejemplo.com" className="w-full bg-slate-950 border border-slate-700 text-slate-100 pl-12 pr-4 py-3 rounded-xl outline-none focus:border-amber-500 text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1">Contraseña Segura</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-3.5 text-slate-500" size={18} />
+              <input type="password" name="password" required minLength={6} value={formData.password} onChange={handleInputChange} placeholder="••••••••" className="w-full bg-slate-950 border border-slate-700 text-slate-100 pl-12 pr-4 py-3 rounded-xl outline-none focus:border-amber-500 text-sm" />
+            </div>
+          </div>
+
+          {isTaskero && (
+            <>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Zona de Operación Principal</label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-3.5 text-slate-500" size={18} />
+                  <input type="text" name="location" required value={formData.location} onChange={handleInputChange} placeholder="Ej. Zona Sur, Sopocachi" className="w-full bg-slate-950 border border-slate-700 text-slate-100 pl-12 pr-4 py-3 rounded-xl outline-none focus:border-amber-500 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Especialidades (Separadas por coma)</label>
+                <div className="relative">
+                  <Briefcase className="absolute left-4 top-3.5 text-slate-500" size={18} />
+                  <input type="text" name="skills" required value={formData.skills} onChange={handleInputChange} placeholder="Ej. Plomería, Trámites, Limpieza" className="w-full bg-slate-950 border border-slate-700 text-slate-100 pl-12 pr-4 py-3 rounded-xl outline-none focus:border-amber-500 text-sm" />
+                </div>
+              </div>
+            </>
+          )}
+
+          <button type="submit" className="w-full mt-4 bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 font-black py-4 rounded-xl shadow-lg transition-all active:scale-95 flex justify-center items-center gap-2">
+            Continuar al Pacto <ChevronRight size={18} />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const OathView = ({ p }: { p: any }) => {
   const isTaskero = p.validatedCodeData?.type === 'taskero_elite';
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   
+  if (!p.registrationData) {
+    p.setCurrentView('gate');
+    return null;
+  }
+
   const handleAcceptOath = async () => {
     setIsProcessing(true);
     try {
-      const authResult = await signInAnonymously(auth);
+      // 1. Crear el usuario real con correo y contraseña
+      const authResult = await createUserWithEmailAndPassword(auth, p.registrationData.email, p.registrationData.password);
       const newUserId = authResult.user.uid;
       
       const role = isTaskero ? 'taskero' : 'client';
       const newProfile: any = {
         id: newUserId,
         role: role,
-        name: isTaskero ? "Gestor Élite" : "Cliente VIP",
+        name: p.registrationData.name,
+        email: p.registrationData.email,
         invitedBy: p.validatedCodeData?.createdBy || 'admin',
         reputationScore: 100,
         createdAt: Date.now()
@@ -180,32 +334,49 @@ const OathView = ({ p }: { p: any }) => {
       
       if (isTaskero) {
         Object.assign(newProfile, {
-          type: "Taskero Élite", avatar: "GE", lineage: "Invitado por la Red", activeNetwork: 5, totalSolved: 0,
-          specialties: ["Gestión VIP"], zones: ["La Paz"]
+          type: "Taskero Élite", 
+          avatar: p.registrationData.name.substring(0, 2).toUpperCase(), 
+          lineage: "Invitado por la Red", 
+          activeNetwork: 5, 
+          totalSolved: 0,
+          specialties: p.registrationData.skills ? p.registrationData.skills.split(',').map((s:string) => s.trim()) : ["Gestión VIP"], 
+          zones: p.registrationData.location ? p.registrationData.location.split(',').map((s:string) => s.trim()) : ["La Paz"]
+        });
+      } else {
+        Object.assign(newProfile, {
+          avatar: p.registrationData.name.substring(0, 2).toUpperCase()
         });
       }
       
+      // 2. Guardamos en Firebase
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', newUserId), newProfile);
       if (p.validatedCodeData && !p.validatedCodeData.id.includes('DEMO')) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invite_codes', p.validatedCodeData.id), { status: 'used', usedBy: newUserId });
       }
-    } catch (err) { 
-      console.warn("Error firmando:", err); 
+
+      // 3. Forzamos la redirección INMEDIATAMENTE después de crear el perfil
+      p.setCurrentProfile(newProfile);
+      p.setCurrentView(role === 'client' ? 'clientDash' : 'taskeroDash');
+
+    } catch (err: any) { 
+      console.warn("Error firmando/registrando:", err); 
+      alert("Hubo un error en tu registro: " + err.message);
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-slate-300">
-      <div className="w-full max-w-md bg-slate-950 rounded-3xl border border-slate-800 overflow-hidden">
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-slate-300 relative overflow-hidden">
+      <button onClick={() => p.setCurrentView('register')} className="absolute top-6 left-6 text-slate-500 hover:text-slate-300 flex items-center text-sm font-bold"><ChevronLeft size={16}/> Atrás</button>
+      <div className="w-full max-w-md bg-slate-950 rounded-3xl border border-slate-800 overflow-hidden z-10">
         <div className="p-8 text-center border-b border-slate-800/50 bg-slate-900/50">
           <ShieldCheck size={32} className="text-amber-500 mx-auto mb-4" />
           <h2 className="text-2xl font-serif text-slate-100 mb-2">{isTaskero ? 'Privilegio y Honor' : 'Bienvenido al Círculo'}</h2>
-          <p className="text-sm text-slate-400">Firma tu compromiso con la red.</p>
+          <p className="text-sm text-slate-400">Firma tu compromiso con la red, <span className="font-bold text-white">{p.registrationData.name.split(' ')[0]}</span>.</p>
         </div>
         <div className="p-8">
           <button onClick={handleAcceptOath} disabled={isProcessing} className="w-full bg-slate-100 hover:bg-white text-slate-900 font-bold py-4 rounded-xl transition-all active:scale-95">
-            {isProcessing ? 'Sellando pacto...' : 'Acepto el Pacto y mi Responsabilidad'}
+            {isProcessing ? 'Registrando y Sellando pacto...' : 'Acepto el Pacto y mi Responsabilidad'}
           </button>
         </div>
       </div>
@@ -227,7 +398,7 @@ const ClientDashboardView = ({ p }: { p: any }) => {
             <div>
               <p className="text-sm font-medium text-slate-400">Tu tranquilidad en La Paz</p>
               <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2 mt-1">
-                <Crown size={24} className="text-amber-400" /> Hola, {p.currentProfile?.name || 'Cliente VIP'}
+                <Crown size={24} className="text-amber-400" /> Hola, {p.currentProfile?.name?.split(' ')[0] || 'Cliente VIP'}
               </h1>
             </div>
             <button onClick={p.handleLogout} className="text-slate-400 hover:text-white p-2" title="Cerrar Sesión"><LogOut size={20}/></button>
@@ -389,7 +560,7 @@ const CheckoutView = ({ p }: { p: any }) => {
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
         <Clock size={80} className="text-blue-500 mb-6 animate-pulse" />
         <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Verificando Pago...</h2>
-        <p className="text-slate-500 text-lg mt-3 mb-10 max-w-md">El administrador revisará el comprobante en breve y liberará la tarea.</p>
+        <p className="text-slate-500 text-lg mt-3 mb-10 max-w-md">El administrador revisará el comprobante en breve y liberará la tarea al Taskero.</p>
         <button onClick={() => p.setCurrentView('clientDash')} className="text-blue-600 hover:text-blue-800 font-bold text-lg transition-colors">Ir al inicio por ahora</button>
       </div>
     );
@@ -425,7 +596,7 @@ const TaskeroDashboardView = ({ p }: { p: any }) => {
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center border-2 border-amber-500 text-amber-500 font-bold text-xl">{p.currentProfile?.avatar || 'TK'}</div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2">{p.currentProfile?.name} <ShieldCheck size={20} className="text-amber-400"/></h1>
+                <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2">{p.currentProfile?.name?.split(' ')[0]} <ShieldCheck size={20} className="text-amber-400"/></h1>
                 <p className="text-sm text-emerald-400 font-bold mt-1">• Activo y esperando leads</p>
               </div>
             </div>
@@ -625,6 +796,7 @@ export default function App() {
   
   const [inviteCodeInput, setInviteCodeInput] = useState<string>('');
   const [validatedCodeData, setValidatedCodeData] = useState<any>(null);
+  const [registrationData, setRegistrationData] = useState<any>(null); // Datos del formulario
   const [selectedTaskero, setSelectedTaskero] = useState<any>(null);
   const [activeTask, setActiveTask] = useState<any>(null);
 
@@ -693,12 +865,12 @@ export default function App() {
     setLoading(false);
   };
 
-  // Paquete de datos compartidos para las vistas
   const appProps = {
-    authUser, currentProfile, currentView, setCurrentView,
+    authUser, currentProfile, currentView, setCurrentView, setCurrentProfile,
     allUsers, allTaskeros, allTasks, allCodes,
     inviteCodeInput, setInviteCodeInput,
     validatedCodeData, setValidatedCodeData,
+    registrationData, setRegistrationData,
     selectedTaskero, setSelectedTaskero,
     activeTask, setActiveTask,
     handleLogout
@@ -708,10 +880,11 @@ export default function App() {
     return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>;
   }
 
-  // RENDERIZADO CORRECTO DE COMPONENTES (<Componente />)
   return (
     <div className="relative w-full bg-slate-950 min-h-screen overflow-x-hidden font-sans text-slate-800">
       {currentView === 'gate' && <GateView p={appProps} />}
+      {currentView === 'login' && <LoginView p={appProps} />}
+      {currentView === 'register' && <RegisterView p={appProps} />}
       {currentView === 'adminLogin' && <AdminLoginView p={appProps} />}
       {currentView === 'oath' && <OathView p={appProps} />}
       {currentView === 'clientDash' && <ClientDashboardView p={appProps} />}
