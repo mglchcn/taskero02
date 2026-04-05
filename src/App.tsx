@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot, deleteDoc, addDoc } from 'firebase/firestore';
 import { 
   ShieldCheck, Key, CheckCircle, Search, Users, ChevronRight, 
@@ -466,8 +466,8 @@ const ChatView = ({ p }: { p: any }) => {
     if (!taskId) return;
     const msgRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId, 'messages');
     const unsub = onSnapshot(msgRef, (snap) => {
-      const msgs = snap.docs.map(d => ({id: d.id, ...d.data()}));
-      setMessages(msgs.sort((a,b) => a.timestamp - b.timestamp));
+      const msgs = snap.docs.map(d => ({id: d.id, ...(d.data() as any)}));
+      setMessages(msgs.sort((a: any, b: any) => a.timestamp - b.timestamp));
     });
     return () => unsub();
   }, [taskId]);
