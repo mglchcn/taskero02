@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -66,7 +66,7 @@ export default function App() {
     try {
       const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
       const unsubUsers = onSnapshot(usersRef, (snapshot) => {
-        const usersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const usersData = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
         setAllUsers(usersData);
         
         const myProfile = usersData.find(u => u.id === authUser.uid);
@@ -98,13 +98,13 @@ export default function App() {
 
       const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
       const unsubTasks = onSnapshot(tasksRef, (snapshot) => {
-        const tasksData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const tasksData = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
         setAllTasks(tasksData.sort((a, b) => b.createdAt - a.createdAt));
       });
 
       const codesRef = collection(db, 'artifacts', appId, 'public', 'data', 'invite_codes');
       const unsubCodes = onSnapshot(codesRef, (snapshot) => {
-        const codesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const codesData = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
         setAllCodes(codesData.sort((a, b) => b.createdAt - a.createdAt));
       });
 
@@ -199,8 +199,8 @@ export default function App() {
         const codeRef = doc(db, 'artifacts', appId, 'public', 'data', 'invite_codes', codeToTest);
         const codeSnap = await getDoc(codeRef);
 
-        if (codeSnap.exists() && codeSnap.data().status === 'active') {
-          setValidatedCodeData({ id: codeSnap.id, ...codeSnap.data() });
+        if (codeSnap.exists() && (codeSnap.data() as any).status === 'active') {
+          setValidatedCodeData({ id: codeSnap.id, ...(codeSnap.data() as any) });
           setCurrentView('oath');
         } else if (codeToTest === 'VIP-DEMO' || codeToTest === 'TSK-DEMO') {
           setValidatedCodeData({ id: codeToTest, type: codeToTest === 'VIP-DEMO' ? 'client_vip' : 'taskero_elite', createdBy: 'admin_master' });
