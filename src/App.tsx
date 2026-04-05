@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, signInAnonymously, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { 
-  ShieldCheck, Key, ArrowRight, CheckCircle, MapPin, Zap, Star, 
-  BookOpen, Search, Users, ChevronRight, Briefcase, 
-  QrCode, Copy, Smartphone, Clock, AlertCircle, TrendingUp, Navigation, 
-  Home, X, Settings, Plus, Link as LinkIcon, Crown, ChevronLeft, Award, Activity, User as UserIcon, Lock,
-  LogOut, UserCog, Shield
+  ShieldCheck, Key, CheckCircle, Search, Users, ChevronRight, 
+  QrCode, Smartphone, Clock, AlertCircle, Settings, Crown, 
+  ChevronLeft, Activity, Lock, LogOut, UserCog, Shield
 } from 'lucide-react';
 
 // --- 0. INYECCIÓN FORZADA DE TAILWIND CSS ---
@@ -18,40 +16,40 @@ if (typeof document !== 'undefined' && !document.getElementById('tailwind-cdn'))
   document.head.appendChild(script);
 }
 
-// --- 1. CONFIGURACIÓN DE FIREBASE ---
-const myFirebaseConfig = {
+// --- 1. CONFIGURACIÓN DE FIREBASE DIRECTA PARA STACKBLITZ/VERCEL ---
+const firebaseConfig = {
   apiKey: "AIzaSyDOFa4obbtn4RU6dkgaxZSdBYXdqkMVKfQ",
   authDomain: "taskeroapp-1023a.firebaseapp.com",
   projectId: "taskeroapp-1023a"
 };
-const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : myFirebaseConfig;
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'taskero-master';
+const appId = 'taskeroapp-1023a';
 
 export default function App() {
-  // --- STATE MANAGEMENT ---
-  const [authUser, setAuthUser] = useState(null);
-  const [currentProfile, setCurrentProfile] = useState(null);
-  const [currentView, setCurrentView] = useState('gate'); // gate, adminLogin, oath, admin, clientDash, taskeroDash, profile, contact, checkout
-  const [loading, setLoading] = useState(true); // Empezamos en true para evitar parpadeos
+  // --- STATE MANAGEMENT (CON TIPOS TYPESCRIPT) ---
+  const [authUser, setAuthUser] = useState<any>(null);
+  const [currentProfile, setCurrentProfile] = useState<any>(null);
+  const [currentView, setCurrentView] = useState<string>('gate'); 
+  const [loading, setLoading] = useState<boolean>(true); 
   
   // Datos de la plataforma
-  const [allUsers, setAllUsers] = useState([]);
-  const [allTaskeros, setAllTaskeros] = useState([]);
-  const [allTasks, setAllTasks] = useState([]);
-  const [allCodes, setAllCodes] = useState([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [allTaskeros, setAllTaskeros] = useState<any[]>([]);
+  const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [allCodes, setAllCodes] = useState<any[]>([]);
   
   // Flujo activo
-  const [inviteCodeInput, setInviteCodeInput] = useState('');
-  const [validatedCodeData, setValidatedCodeData] = useState(null);
-  const [selectedTaskero, setSelectedTaskero] = useState(null);
-  const [activeTask, setActiveTask] = useState(null);
+  const [inviteCodeInput, setInviteCodeInput] = useState<string>('');
+  const [validatedCodeData, setValidatedCodeData] = useState<any>(null);
+  const [selectedTaskero, setSelectedTaskero] = useState<any>(null);
+  const [activeTask, setActiveTask] = useState<any>(null);
 
-  // --- INICIALIZAR AUTENTICACIÓN Y ENRUTAMIENTO AUTOMÁTICO ---
+  // --- INICIALIZAR AUTENTICACIÓN ---
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, user => {
+    const unsub = onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
       if (!user) {
         setCurrentProfile(null);
@@ -66,7 +64,6 @@ export default function App() {
   useEffect(() => {
     if (!authUser) return;
     try {
-      // 1. Escuchar Usuarios (Para Admin y para encontrar el perfil actual)
       const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
       const unsubUsers = onSnapshot(usersRef, (snapshot) => {
         const usersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -85,7 +82,6 @@ export default function App() {
 
         if (myProfile) {
           setCurrentProfile(myProfile);
-          // Enrutamiento seguro basado en el rol de la base de datos
           if (['superadmin', 'editor'].includes(myProfile.role)) {
             setCurrentView('admin');
           } else if (myProfile.role === 'taskero') {
@@ -93,21 +89,19 @@ export default function App() {
           } else if (myProfile.role === 'client') {
             setCurrentView('clientDash');
           } else {
-            setCurrentView('gate'); // Visitante o rol desconocido
+            setCurrentView('gate');
           }
         }
         setAllTaskeros(usersData.filter(u => u.role === 'taskero'));
         setLoading(false);
       });
 
-      // 2. Escuchar Tareas
       const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
       const unsubTasks = onSnapshot(tasksRef, (snapshot) => {
         const tasksData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setAllTasks(tasksData.sort((a, b) => b.createdAt - a.createdAt));
       });
 
-      // 3. Escuchar Códigos
       const codesRef = collection(db, 'artifacts', appId, 'public', 'data', 'invite_codes');
       const unsubCodes = onSnapshot(codesRef, (snapshot) => {
         const codesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -121,7 +115,6 @@ export default function App() {
     }
   }, [authUser]);
 
-  // --- CERRAR SESIÓN ---
   const handleLogout = async () => {
     setLoading(true);
     await signOut(auth);
@@ -132,26 +125,23 @@ export default function App() {
 
 
   // ==============================================================================
-  // VISTA 0: LOGIN DE ADMINISTRADORES (NUEVO)
+  // VISTA 0: LOGIN DE ADMINISTRADORES
   // ==============================================================================
   const AdminLoginView = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [loginError, setLoginError] = useState('');
-    const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [email, setEmail] = useState<string>('');
+    const [password, setPassword] = useState<string>('');
+    const [loginError, setLoginError] = useState<string>('');
+    const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
 
-    const handleAdminLogin = async (e) => {
+    const handleAdminLogin = async (e: any) => {
       e.preventDefault();
       setIsLoggingIn(true); setLoginError('');
       try {
-        // Puerta trasera de demo local si no hay Firebase configurado
         if (email === 'admin@demo.com' && password === 'admin123') {
            await signInAnonymously(auth);
-           // El useEffect se encargará de darle el rol de demo
            return;
         }
         await signInWithEmailAndPassword(auth, email, password);
-        // El useEffect redireccionará automáticamente basado en el rol
       } catch (err) {
         setLoginError('Credenciales incorrectas o usuario no autorizado.');
         setIsLoggingIn(false);
@@ -176,16 +166,14 @@ export default function App() {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-400 mb-1">Correo Electrónico</label>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@taskero.com" className="w-full bg-slate-950 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl outline-none focus:border-purple-500" />
+                <input type="email" required value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder="admin@taskero.com" className="w-full bg-slate-950 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl outline-none focus:border-purple-500" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 mb-1">Contraseña</label>
-                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-950 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl outline-none focus:border-purple-500" />
+                <input type="password" required value={password} onChange={(e: any) => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-950 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl outline-none focus:border-purple-500" />
               </div>
             </div>
-            
             {loginError && <div className="mt-4 text-red-400 text-xs font-bold text-center bg-red-400/10 py-2 rounded-lg">{loginError}</div>}
-            
             <button disabled={isLoggingIn || !email || !password} type="submit" className="w-full mt-6 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50">
               {isLoggingIn ? 'Verificando...' : 'Iniciar Sesión'}
             </button>
@@ -200,10 +188,10 @@ export default function App() {
   // VISTA 1: LA PUERTA (GATE) - ACCESO VIP
   // ==============================================================================
   const GateView = () => {
-    const [error, setError] = useState('');
-    const [isProcessing, setIsProcessing] = useState(false);
+    const [error, setError] = useState<string>('');
+    const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-    const handleValidateCode = async (e) => {
+    const handleValidateCode = async (e: any) => {
       e.preventDefault();
       setIsProcessing(true); setError('');
       try {
@@ -239,7 +227,7 @@ export default function App() {
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Ingresa tu credencial</label>
             <div className="relative">
               <Key className="absolute left-4 top-4 text-slate-500" size={20} />
-              <input type="text" value={inviteCodeInput} onChange={(e) => setInviteCodeInput(e.target.value)} placeholder="Ej: VIP-LA-PAZ" className="w-full bg-slate-950 border border-slate-700 text-slate-100 px-12 py-4 rounded-xl outline-none focus:border-amber-500 text-center font-mono text-lg tracking-widest uppercase" />
+              <input type="text" value={inviteCodeInput} onChange={(e: any) => setInviteCodeInput(e.target.value)} placeholder="Ej: VIP-DEMO" className="w-full bg-slate-950 border border-slate-700 text-slate-100 px-12 py-4 rounded-xl outline-none focus:border-amber-500 text-center font-mono text-lg tracking-widest uppercase" />
             </div>
             {error && <div className="text-red-400 text-xs font-medium text-center">{error}</div>}
             <button disabled={isProcessing || !inviteCodeInput} type="submit" className="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 font-black py-4 rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all flex justify-center items-center gap-2 active:scale-95 disabled:opacity-50">
@@ -247,8 +235,6 @@ export default function App() {
             </button>
           </form>
         </div>
-
-        {/* Acceso para Empleados/Admins */}
         <button onClick={() => setCurrentView('adminLogin')} className="absolute bottom-6 text-xs font-bold text-slate-600 hover:text-slate-400 uppercase tracking-widest transition-colors flex items-center gap-2">
           <Lock size={12}/> Acceso de Personal
         </button>
@@ -261,22 +247,20 @@ export default function App() {
   // ==============================================================================
   const OathView = () => {
     const isTaskero = validatedCodeData?.type === 'taskero_elite';
-    const [isProcessing, setIsProcessing] = useState(false);
+    const [isProcessing, setIsProcessing] = useState<boolean>(false);
     
     const handleAcceptOath = async () => {
       setIsProcessing(true);
       try {
-        // En un flujo real, aquí pediríamos email/password para registrarlo bien.
-        // Por ahora lo hacemos anónimo y creamos su perfil.
         const authResult = await signInAnonymously(auth);
         const newUserId = authResult.user.uid;
         
         const role = isTaskero ? 'taskero' : 'client';
-        const newProfile = {
+        const newProfile: any = {
           id: newUserId,
           role: role,
           name: isTaskero ? "Gestor Élite" : "Cliente VIP",
-          invitedBy: validatedCodeData.createdBy,
+          invitedBy: validatedCodeData?.createdBy || 'admin',
           reputationScore: 100,
           createdAt: Date.now()
         };
@@ -289,11 +273,9 @@ export default function App() {
         }
         
         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', newUserId), newProfile);
-        if (!validatedCodeData.id.includes('DEMO')) {
+        if (validatedCodeData && !validatedCodeData.id.includes('DEMO')) {
           await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invite_codes', validatedCodeData.id), { status: 'used', usedBy: newUserId });
         }
-        
-        // El useEffect de AuthState escuchará el cambio y lo redirigirá.
       } catch (err) { 
         console.warn("Error firmando:", err); 
         setIsProcessing(false);
@@ -319,174 +301,7 @@ export default function App() {
   };
 
   // ==============================================================================
-  // VISTA 8: DASHBOARD ADMINISTRADOR (Gestión Completa)
-  // ==============================================================================
-  const AdminDashboardView = () => {
-    const [adminTab, setAdminTab] = useState('ops'); // 'ops', 'users'
-    const isSuperAdmin = currentProfile?.role === 'superadmin';
-    const tasksVerifying = allTasks.filter(t => t.status === 'verifying');
-    
-    // Funciones Operativas
-    const handleApprove = async (taskId) => {
-      try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId), { status: 'paid' }, { merge: true }); } 
-      catch (e) {}
-    };
-
-    const handleGenCode = async (type) => {
-      const code = `${type === 'taskero_elite' ? 'TSK' : 'VIP'}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-      try {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invite_codes', code), { id: code, type, status: 'active', createdBy: currentProfile?.id || 'admin', createdAt: Date.now() });
-      } catch (e) {}
-    };
-
-    // Función de Gestión de Usuarios
-    const handleChangeUserRole = async (userId, newRole) => {
-      if (!isSuperAdmin) return alert('Solo un Súper Administrador puede cambiar roles.');
-      try {
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId), { role: newRole });
-      } catch (err) {
-        console.warn('Error cambiando rol', err);
-      }
-    };
-
-    return (
-      <div className="min-h-screen bg-slate-100 pb-24">
-        
-        {/* Admin Header */}
-        <header className="bg-slate-950 text-white px-6 md:px-10 py-6 md:py-8 shadow-lg">
-          <div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-black flex items-center gap-3"><Settings className="text-purple-500" size={28}/> Centro de Mando</h1>
-              <p className="text-slate-400 mt-1 text-sm flex items-center gap-2">
-                Conectado como: <span className="font-bold text-white uppercase tracking-wider text-xs bg-slate-800 px-2 py-0.5 rounded">{currentProfile?.role}</span>
-              </p>
-            </div>
-            <button onClick={handleLogout} className="text-xs font-bold text-red-400 hover:text-red-300 flex items-center gap-2 transition-colors border border-slate-800 bg-slate-900 px-4 py-2 rounded-lg w-fit">
-              <LogOut size={14}/> Cerrar Sesión
-            </button>
-          </div>
-          
-          {/* Admin Tabs */}
-          <div className="max-w-7xl mx-auto w-full mt-8 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            <button onClick={() => setAdminTab('ops')} className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${adminTab === 'ops' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}`}>
-               <Activity size={16} className="inline mr-2"/> Operaciones y Accesos
-            </button>
-            <button onClick={() => setAdminTab('users')} className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${adminTab === 'users' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}`}>
-               <UserCog size={16} className="inline mr-2"/> Gestión de Usuarios
-            </button>
-          </div>
-        </header>
-
-        <div className="max-w-7xl mx-auto w-full p-5 md:p-8 mt-2">
-          
-          {/* PESTAÑA: OPERACIONES (Pagos y Códigos) */}
-          {adminTab === 'ops' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 animate-in fade-in">
-              <section>
-                <h2 className="text-base md:text-lg font-bold text-slate-500 uppercase mb-4 flex items-center gap-2"><AlertCircle size={20} className="text-amber-500"/> Validar Pagos ({tasksVerifying.length})</h2>
-                {tasksVerifying.length === 0 && (
-                  <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center text-slate-400 shadow-sm">Sin pagos pendientes de revisión.</div>
-                )}
-                <div className="space-y-4">
-                  {tasksVerifying.map(t => (
-                    <div key={t.id} className="bg-white p-6 rounded-3xl shadow-sm border border-amber-200 hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-2">
-                        <p className="font-bold text-slate-900 text-lg">{t.clientName}</p>
-                        <span className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full">Bs. {t.managementFee}</span>
-                      </div>
-                      <p className="text-sm text-slate-500 mb-6">Asignado a: <span className="font-semibold text-slate-700">{t.taskeroName}</span></p>
-                      <button onClick={() => handleApprove(t.id)} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-colors">Aprobar Pago (Liberar Tarea)</button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section>
-                <h2 className="text-base md:text-lg font-bold text-slate-500 uppercase mb-4 flex items-center gap-2"><Key size={20} className="text-blue-500"/> Generar Accesos</h2>
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <button onClick={() => handleGenCode('client_vip')} className="bg-blue-600 hover:bg-blue-700 transition-colors text-white font-bold py-4 rounded-2xl shadow-sm">Pase Cliente VIP</button>
-                  <button onClick={() => handleGenCode('taskero_elite')} className="bg-amber-500 hover:bg-amber-400 transition-colors text-slate-900 font-bold py-4 rounded-2xl shadow-sm">Pase Taskero Élite</button>
-                </div>
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-50 p-4 border-b border-slate-200"><p className="font-bold text-slate-700 text-sm">Registro de Accesos Generados</p></div>
-                  {allCodes.length === 0 && <p className="p-8 text-center text-slate-400">No hay códigos generados.</p>}
-                  <div className="divide-y divide-slate-100">
-                    {allCodes.slice(0,8).map(c => (
-                      <div key={c.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
-                        <span className="font-mono font-bold text-slate-800 text-sm md:text-base">{c.id}</span>
-                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${c.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{c.status === 'active' ? 'Activo' : 'Usado'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </div>
-          )}
-
-          {/* PESTAÑA: GESTIÓN DE USUARIOS */}
-          {adminTab === 'users' && (
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in">
-              <div className="p-5 md:p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users size={20} className="text-slate-500"/> Base de Datos de Usuarios</h2>
-                <span className="bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1 rounded-full">Total: {allUsers.length}</span>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-white border-b border-slate-100 text-xs uppercase tracking-wider text-slate-400">
-                      <th className="p-4 md:p-6 font-semibold">Nombre / ID</th>
-                      <th className="p-4 md:p-6 font-semibold">Rol Actual</th>
-                      <th className="p-4 md:p-6 font-semibold text-right">Acción (Asignar Rol)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {allUsers.map(user => (
-                      <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-4 md:p-6">
-                          <p className="font-bold text-slate-900">{user.name || 'Sin nombre'}</p>
-                          <p className="text-xs text-slate-400 font-mono mt-1">{user.id.substring(0,10)}...</p>
-                        </td>
-                        <td className="p-4 md:p-6">
-                          <span className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${
-                            user.role === 'superadmin' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                            user.role === 'editor' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                            user.role === 'taskero' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                            user.role === 'client' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                            'bg-slate-100 text-slate-600 border-slate-200'
-                          }`}>
-                            {user.role || 'visitante'}
-                          </span>
-                        </td>
-                        <td className="p-4 md:p-6 text-right">
-                          <select 
-                            disabled={!isSuperAdmin || user.id === currentProfile?.id}
-                            value={user.role || 'visitante'}
-                            onChange={(e) => handleChangeUserRole(user.id, e.target.value)}
-                            className="bg-white border border-slate-300 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2 ml-auto disabled:opacity-50 disabled:bg-slate-50 outline-none"
-                          >
-                            <option value="superadmin">Súper Admin</option>
-                            <option value="editor">Editor</option>
-                            <option value="taskero">Taskero Élite</option>
-                            <option value="client">Cliente VIP</option>
-                            <option value="visitante">Visitante</option>
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-        </div>
-      </div>
-    );
-  };
-
-  // ==============================================================================
-  // VISTAS DEL DASHBOARD (CLIENTE Y TASKERO) - CON BOTÓN DE LOGOUT
+  // VISTA 3: DASHBOARD CLIENTE (RESTORED RESPONSIVE)
   // ==============================================================================
   const ClientDashboardView = () => {
     const displayTaskeros = allTaskeros.length > 0 ? allTaskeros : [
@@ -539,6 +354,168 @@ export default function App() {
     );
   };
 
+  // ==============================================================================
+  // VISTA 4: PERFIL DEL TASKERO (RESTORED RESPONSIVE)
+  // ==============================================================================
+  const ProfileView = () => {
+    const t = selectedTaskero;
+    if (!t) return null;
+
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
+        <header className="relative pt-6 pb-8 px-6 md:pt-12 md:pb-16 bg-gradient-to-b from-slate-900 to-slate-950 border-b border-slate-800">
+          <button onClick={() => setCurrentView('clientDash')} className="absolute top-6 left-4 md:top-10 md:left-10 p-2 text-slate-400 bg-slate-900/50 rounded-full hover:bg-slate-800 transition-colors"><ChevronLeft size={24}/></button>
+          <div className="flex flex-col items-center mt-8 md:mt-0">
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-slate-800 border-2 border-amber-500/50 flex items-center justify-center text-3xl md:text-5xl font-serif text-amber-500 mb-4 shadow-xl shadow-amber-500/10">{t.avatar || 'TK'}</div>
+            <h1 className="text-2xl md:text-4xl font-serif text-white tracking-wide">{t.name}</h1>
+            <p className="text-amber-500 text-xs md:text-sm font-bold uppercase tracking-widest mt-2"><Crown size={14} className="inline mr-1 mb-0.5"/>{t.type || 'Gestor Élite'}</p>
+          </div>
+        </header>
+
+        <main className="p-5 md:p-10 space-y-6 max-w-4xl mx-auto w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-lg text-center flex flex-col justify-center">
+              <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Puntos de Prestigio</p>
+              <p className="text-5xl md:text-6xl font-black text-white">{t.reputationScore || 100}</p>
+              <p className="text-xs md:text-sm text-amber-500 font-bold mt-3">Excelencia Verificada</p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+               <h3 className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">Especialidades</h3>
+               <div className="flex flex-wrap gap-2">
+                {(t.specialties || ['Gestor General', 'Emergencias']).map((spec: string, idx: number) => (
+                  <span key={idx} className="bg-slate-800 text-slate-300 text-xs md:text-sm font-bold px-4 py-2 rounded-xl">{spec}</span>
+                ))}
+               </div>
+            </div>
+          </div>
+        </main>
+
+        <div className="fixed bottom-0 w-full left-0 bg-slate-950/90 backdrop-blur-md border-t border-slate-800 p-4 z-50">
+          <div className="max-w-4xl mx-auto w-full">
+            <button onClick={() => setCurrentView('contact')} className="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 transition-colors text-slate-950 font-black py-4 rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.2)] flex justify-center items-center gap-2 text-base md:text-lg">
+              <Lock size={20} /> Delegar Problema a {t.name.split(' ')[0]}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ==============================================================================
+  // VISTA 5: CONTACTO / SOLICITUD (RESTORED RESPONSIVE)
+  // ==============================================================================
+  const ContactView = () => {
+    const [problemDesc, setProblemDesc] = useState<string>('');
+    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+    const handleSubmit = async (e: any) => {
+      e.preventDefault();
+      if (!selectedTaskero) return;
+      setIsSubmitting(true);
+      const taskId = `REQ-${Date.now()}`;
+      const newTask = {
+        id: taskId,
+        clientId: currentProfile?.id || 'local_client',
+        clientName: currentProfile?.name || 'Cliente VIP',
+        taskeroId: selectedTaskero.id,
+        taskeroName: selectedTaskero.name,
+        problem: problemDesc,
+        status: 'awaiting_payment',
+        createdAt: Date.now(),
+        managementFee: 15
+      };
+
+      setActiveTask(newTask);
+      setCurrentView('checkout');
+      setIsSubmitting(false);
+
+      if (authUser) {
+        try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId), newTask); } 
+        catch (err) { console.warn("Error:", err); }
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-slate-50 p-5 md:p-10 flex flex-col items-center">
+        <div className="w-full max-w-2xl mx-auto mt-4 md:mt-10">
+          <button onClick={() => setCurrentView('profile')} className="text-slate-500 hover:text-slate-800 transition-colors font-bold mb-8 flex items-center"><ChevronLeft size={20}/> Volver al Perfil</button>
+          <h2 className="text-2xl md:text-3xl font-bold mb-6 text-slate-900">¿Qué necesitas que gestione {selectedTaskero?.name?.split(' ')[0] || 'el Gestor'}?</h2>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <textarea required value={problemDesc} onChange={(e: any) => setProblemDesc(e.target.value)} placeholder="Describe tu problema con detalle. Ej: Fuga de agua en el baño principal, necesito a alguien hoy a las 5 PM..." className="w-full bg-white border border-slate-200 p-6 rounded-2xl min-h-[200px] text-base md:text-lg shadow-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all"></textarea>
+            <div className="bg-amber-50 text-amber-800 p-5 md:p-6 rounded-2xl text-sm md:text-base border border-amber-200 shadow-sm">
+              <p className="font-bold flex items-center gap-2 mb-2 text-amber-900"><ShieldCheck size={18}/> Activación de Súper Gestor</p>
+              <p>Requerimos una tarifa simbólica de Bs. 15 para notificar al gestor e iniciar la coordinación VIP. El costo del trabajo lo negociarás directamente con él una vez evaluado el problema.</p>
+            </div>
+            <button disabled={isSubmitting} type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-5 rounded-2xl shadow-xl active:scale-[0.98] transition-all text-lg">
+              Avanzar al Pago Seguro
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  // ==============================================================================
+  // VISTA 6: CHECKOUT (RESTORED RESPONSIVE)
+  // ==============================================================================
+  const CheckoutView = () => {
+    const currentTaskFromDB = allTasks.find(t => t.id === activeTask?.id) || activeTask;
+    const taskStatus = currentTaskFromDB?.status;
+
+    const handleNotifyPayment = async () => {
+      if (activeTask) {
+        setActiveTask({...activeTask, status: 'verifying'});
+        if (authUser) {
+          try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', activeTask.id), { status: 'verifying' }, { merge: true }); } 
+          catch (err) {}
+        }
+      }
+    };
+
+    if (taskStatus === 'paid') {
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+          <CheckCircle size={80} className="text-emerald-500 mb-6 animate-in zoom-in" />
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900">¡Pago Confirmado!</h2>
+          <p className="text-slate-500 text-lg mt-3 mb-10 max-w-md">El gestor ha sido notificado y se pondrá a trabajar de inmediato.</p>
+          <button onClick={() => setCurrentView('clientDash')} className="bg-slate-900 hover:bg-slate-800 text-white px-10 py-4 rounded-xl font-bold text-lg transition-colors">Volver al Inicio</button>
+        </div>
+      );
+    }
+
+    if (taskStatus === 'verifying') {
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+          <Clock size={80} className="text-blue-500 mb-6 animate-pulse" />
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Verificando Pago...</h2>
+          <p className="text-slate-500 text-lg mt-3 mb-10 max-w-md">El administrador revisará el comprobante en breve y liberará la tarea al Taskero.</p>
+          <button onClick={() => setCurrentView('clientDash')} className="text-blue-600 hover:text-blue-800 font-bold text-lg transition-colors">Ir al inicio por ahora</button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-slate-50 p-5 md:p-10 flex flex-col items-center">
+        <div className="w-full max-w-xl mx-auto bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 mt-4 md:mt-10">
+          <div className="bg-slate-900 p-8 text-white text-center">
+            <p className="text-slate-400 text-base font-medium uppercase tracking-wider mb-2">Tarifa de Gestión VIP</p>
+            <h2 className="text-5xl font-black text-amber-500">Bs. 15</h2>
+          </div>
+          <div className="p-8 md:p-12 text-center">
+            <QrCode size={200} className="mx-auto text-slate-200 mb-8"/>
+            <p className="text-base md:text-lg font-bold text-slate-800 mb-6">Escanea el QR de prueba o simula el pago.</p>
+            <button onClick={handleNotifyPayment} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 rounded-2xl shadow-lg flex justify-center items-center gap-3 active:scale-[0.98] transition-all text-lg">
+              <Smartphone size={24} /> Simular Comprobante Enviado
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ==============================================================================
+  // VISTA 7: DASHBOARD TASKERO
+  // ==============================================================================
   const TaskeroDashboardView = () => {
     const myLeads = allTasks.filter(t => t.taskeroId === currentProfile?.id && t.status === 'paid');
 
@@ -546,7 +523,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-100 pb-24">
         <div className="bg-slate-950 shadow-lg text-white rounded-b-3xl md:rounded-b-[3rem] pb-8">
           <header className="px-6 py-6 md:px-10 md:py-10 max-w-7xl mx-auto w-full">
-            <div className="flex justify-between items-start mb-8">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-6 mb-8">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center border-2 border-amber-500 text-amber-500 font-bold text-xl">{currentProfile?.avatar || 'TK'}</div>
                 <div>
@@ -554,11 +531,13 @@ export default function App() {
                   <p className="text-sm text-emerald-400 font-bold mt-1">• Activo y esperando leads</p>
                 </div>
               </div>
-              <button onClick={handleLogout} className="text-slate-400 hover:text-white p-2" title="Cerrar Sesión"><LogOut size={20}/></button>
-            </div>
-            <div className="bg-slate-900 rounded-2xl p-5 flex justify-between items-center border border-slate-800 max-w-sm">
-              <div><p className="text-sm text-slate-400 mb-1">Leads VIP recibidos</p><p className="text-3xl font-bold text-white">{myLeads.length}</p></div>
-              <Activity size={32} className="text-amber-500"/>
+              <div className="flex items-center gap-4">
+                 <div className="bg-slate-900 rounded-2xl p-5 flex justify-between items-center border border-slate-800 min-w-[200px]">
+                   <div><p className="text-sm text-slate-400 mb-1">Leads VIP</p><p className="text-3xl font-bold text-white">{myLeads.length}</p></div>
+                   <Activity size={32} className="text-amber-500"/>
+                 </div>
+                 <button onClick={handleLogout} className="text-slate-400 hover:text-white p-2" title="Cerrar Sesión"><LogOut size={24}/></button>
+              </div>
             </div>
           </header>
         </div>
@@ -587,25 +566,163 @@ export default function App() {
     );
   };
 
-  // (Vistas de Flujo de Cliente se mantienen iguales)
-  const ProfileView = () => { /* ...Código de perfil... */ return (<div className="min-h-screen bg-slate-950 text-white p-10"><button onClick={()=>setCurrentView('clientDash')}><ChevronLeft/></button> <h1 className="text-3xl mt-10">Perfil de {selectedTaskero?.name}</h1><button onClick={()=>setCurrentView('contact')} className="mt-10 bg-amber-500 text-black px-6 py-3 rounded-xl font-bold">Delegar Problema</button></div>); };
-  const ContactView = () => { /* ...Código de contacto... */ return (<div className="min-h-screen bg-slate-50 p-10"><button onClick={()=>setCurrentView('clientDash')}><ChevronLeft/></button> <h1 className="text-2xl mt-10 font-bold text-slate-900">Describe el problema</h1><button onClick={()=>{setActiveTask({id:`REQ-${Date.now()}`, status:'awaiting_payment', managementFee:15, clientName: currentProfile?.name, taskeroName: selectedTaskero?.name}); setCurrentView('checkout');}} className="mt-10 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold">Avanzar al Pago</button></div>); };
-  const CheckoutView = () => { /* ...Código de pago... */ const handlePay = async () => { if(authUser && activeTask) { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', activeTask.id), {...activeTask, status: 'verifying'}); setCurrentView('clientDash'); } }; return (<div className="min-h-screen bg-slate-50 p-10 flex flex-col items-center justify-center"><h1 className="text-2xl font-bold text-slate-900 mb-6">Pagar Tarifa (Bs. 15)</h1><button onClick={handlePay} className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2"><Smartphone/> Simular Pago Enviado</button></div>); };
+  // ==============================================================================
+  // VISTA 8: DASHBOARD ADMINISTRADOR
+  // ==============================================================================
+  const AdminDashboardView = () => {
+    const [adminTab, setAdminTab] = useState<string>('ops'); 
+    const isSuperAdmin = currentProfile?.role === 'superadmin';
+    const tasksVerifying = allTasks.filter(t => t.status === 'verifying');
+    
+    const handleApprove = async (taskId: string) => {
+      try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId), { status: 'paid' }, { merge: true }); } 
+      catch (e) {}
+    };
 
+    const handleGenCode = async (type: string) => {
+      const code = `${type === 'taskero_elite' ? 'TSK' : 'VIP'}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      try {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'invite_codes', code), { id: code, type, status: 'active', createdBy: currentProfile?.id || 'admin', createdAt: Date.now() });
+      } catch (e) {}
+    };
+
+    const handleChangeUserRole = async (userId: string, newRole: string) => {
+      if (!isSuperAdmin) return alert('Solo un Súper Administrador puede cambiar roles.');
+      try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId), { role: newRole }); } 
+      catch (err) { console.warn('Error', err); }
+    };
+
+    return (
+      <div className="min-h-screen bg-slate-100 pb-24">
+        <header className="bg-slate-950 text-white px-6 md:px-10 py-6 md:py-8 shadow-lg">
+          <div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-black flex items-center gap-3"><Settings className="text-purple-500" size={28}/> Centro de Mando</h1>
+              <p className="text-slate-400 mt-1 text-sm flex items-center gap-2">
+                Conectado como: <span className="font-bold text-white uppercase tracking-wider text-xs bg-slate-800 px-2 py-0.5 rounded">{currentProfile?.role}</span>
+              </p>
+            </div>
+            <button onClick={handleLogout} className="text-xs font-bold text-red-400 hover:text-red-300 flex items-center gap-2 transition-colors border border-slate-800 bg-slate-900 px-4 py-2 rounded-lg w-fit">
+              <LogOut size={14}/> Cerrar Sesión
+            </button>
+          </div>
+          
+          <div className="max-w-7xl mx-auto w-full mt-8 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <button onClick={() => setAdminTab('ops')} className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${adminTab === 'ops' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}`}>
+               <Activity size={16} className="inline mr-2"/> Operaciones
+            </button>
+            <button onClick={() => setAdminTab('users')} className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${adminTab === 'users' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}`}>
+               <UserCog size={16} className="inline mr-2"/> Usuarios
+            </button>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto w-full p-5 md:p-8 mt-2">
+          {adminTab === 'ops' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 animate-in fade-in">
+              <section>
+                <h2 className="text-base md:text-lg font-bold text-slate-500 uppercase mb-4 flex items-center gap-2"><AlertCircle size={20} className="text-amber-500"/> Validar Pagos ({tasksVerifying.length})</h2>
+                {tasksVerifying.length === 0 && <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center text-slate-400">Sin pagos pendientes.</div>}
+                <div className="space-y-4">
+                  {tasksVerifying.map(t => (
+                    <div key={t.id} className="bg-white p-6 rounded-3xl shadow-sm border border-amber-200 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="font-bold text-slate-900 text-lg">{t.clientName}</p>
+                        <span className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full">Bs. {t.managementFee}</span>
+                      </div>
+                      <p className="text-sm text-slate-500 mb-6">Asignado a: <span className="font-semibold text-slate-700">{t.taskeroName}</span></p>
+                      <button onClick={() => handleApprove(t.id)} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-colors">Aprobar Pago</button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-base md:text-lg font-bold text-slate-500 uppercase mb-4 flex items-center gap-2"><Key size={20} className="text-blue-500"/> Generar Accesos</h2>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <button onClick={() => handleGenCode('client_vip')} className="bg-blue-600 hover:bg-blue-700 transition-colors text-white font-bold py-4 rounded-2xl shadow-sm">Pase Cliente</button>
+                  <button onClick={() => handleGenCode('taskero_elite')} className="bg-amber-500 hover:bg-amber-400 transition-colors text-slate-900 font-bold py-4 rounded-2xl shadow-sm">Pase Taskero</button>
+                </div>
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-50 p-4 border-b border-slate-200"><p className="font-bold text-slate-700 text-sm">Códigos Emitidos</p></div>
+                  {allCodes.length === 0 && <p className="p-8 text-center text-slate-400">No hay códigos.</p>}
+                  <div className="divide-y divide-slate-100">
+                    {allCodes.slice(0,8).map(c => (
+                      <div key={c.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                        <span className="font-mono font-bold text-slate-800">{c.id}</span>
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${c.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{c.status === 'active' ? 'Activo' : 'Usado'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {adminTab === 'users' && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in">
+              <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users size={20} className="text-slate-500"/> Base de Datos</h2>
+                <span className="bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1 rounded-full">Total: {allUsers.length}</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white border-b border-slate-100 text-xs uppercase tracking-wider text-slate-400">
+                      <th className="p-4 font-semibold">Nombre / ID</th>
+                      <th className="p-4 font-semibold">Rol Actual</th>
+                      <th className="p-4 font-semibold text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {allUsers.map(user => (
+                      <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4">
+                          <p className="font-bold text-slate-900">{user.name || 'Sin nombre'}</p>
+                          <p className="text-xs text-slate-400 font-mono mt-1">{user.id.substring(0,10)}...</p>
+                        </td>
+                        <td className="p-4">
+                          <span className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${
+                            user.role === 'superadmin' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                            user.role === 'taskero' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                            user.role === 'client' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                            'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}>{user.role || 'visitante'}</span>
+                        </td>
+                        <td className="p-4 text-right">
+                          <select 
+                            disabled={!isSuperAdmin || user.id === currentProfile?.id}
+                            value={user.role || 'visitante'}
+                            onChange={(e: any) => handleChangeUserRole(user.id, e.target.value)}
+                            className="bg-white border border-slate-300 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2 ml-auto disabled:opacity-50 outline-none"
+                          >
+                            <option value="superadmin">Súper Admin</option>
+                            <option value="taskero">Taskero Élite</option>
+                            <option value="client">Cliente VIP</option>
+                            <option value="visitante">Visitante</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   // ==============================================================================
-  // PANTALLA DE CARGA GLOBAL
+  // PANTALLA DE CARGA Y RENDERIZADO PRINCIPAL
   // ==============================================================================
   if (loading) {
     return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>;
   }
 
-  // ==============================================================================
-  // RENDERIZADO PRINCIPAL (SIN MENÚ DEMO, ENRUTAMIENTO REAL)
-  // ==============================================================================
   return (
     <div className="relative w-full bg-slate-950 min-h-screen overflow-x-hidden font-sans text-slate-800">
-      
       {currentView === 'gate' && <GateView />}
       {currentView === 'adminLogin' && <AdminLoginView />}
       {currentView === 'oath' && <OathView />}
@@ -615,7 +732,6 @@ export default function App() {
       {currentView === 'contact' && <ContactView />}
       {currentView === 'checkout' && <CheckoutView />}
       {currentView === 'admin' && <AdminDashboardView />}
-
     </div>
   );
 }
